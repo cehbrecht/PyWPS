@@ -142,6 +142,7 @@ def get_stalled_jobs():
         session.query(ProcessInstance)
         .filter(ProcessInstance.percent_done < 100)
         .filter(ProcessInstance.percent_done > -1)
+        .filter(ProcessInstance.status < 5)
         .filter(ProcessInstance.time_start < accepted_starttime)
         .filter(~ProcessInstance.uuid.in_(stored_query))
     )
