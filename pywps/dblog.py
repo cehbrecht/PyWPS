@@ -131,6 +131,26 @@ def store_status(uuid, wps_status, message=None, status_percentage=None, pid=-1)
     session.close()
 
 
+def get_stalled_jobs():
+    maxprocessingtime = int(configuration.get_config_value('server', 'maxprocessingtime'))
+    if maxprocessingtime < 0:
+        return
+    accepted_starttime = datetime.datetime.now() - datetime.timedelta(seconds=maxprocessingtime)
+    session = get_session()
+    stored_query = session.query(RequestInstance.uuid)
+    stalled_query = (
+        session.query(ProcessInstance)
+        .filter(ProcessInstance.percent_done < 100)
+        .filter(ProcessInstance.percent_done > -1)
+        .filter(ProcessInstance.time_start < accepted_starttime)
+        .filter(~ProcessInstance.uuid.in_(stored_query))
+    )
+    if stalled_query.count():
+        LOGGER.debug("There are {} stalled jobs".format(stalled_query.count()))
+    session.close()
+    return stalled_query
+
+
 def _get_identifier(request):
     """Get operation identifier
     """

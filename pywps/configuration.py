@@ -72,6 +72,7 @@ def load_configuration(cfgfiles=None):
     CONFIG.set('server', 'maxprocesses', '30')
     CONFIG.set('server', 'maxsingleinputsize', '1mb')
     CONFIG.set('server', 'maxrequestsize', '3mb')
+    CONFIG.set('server', 'maxprocessingtime', '-1')
     CONFIG.set('server', 'temp_path', tempfile.gettempdir())
     CONFIG.set('server', 'processes', '')
     outputpath = tempfile.gettempdir()

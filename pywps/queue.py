@@ -30,6 +30,7 @@ class JobQueueService(object):
         while True:
             # Logging errors and exceptions
             try:
+                dblog.get_stalled_jobs()
                 running, stored = dblog.get_process_counts()
                 if old_running != running or old_stored != stored:
                     old_running = running
