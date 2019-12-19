@@ -4,6 +4,7 @@ jsonschema
 lxml
 owslib
 pathlib
+psutil
 python-dateutil
 requests
 SQLAlchemy

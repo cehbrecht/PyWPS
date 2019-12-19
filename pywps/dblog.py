@@ -90,6 +90,7 @@ def get_process_counts():
         session.query(ProcessInstance)
         .filter(ProcessInstance.percent_done < 100)
         .filter(ProcessInstance.percent_done > -1)
+        .filter(ProcessInstance.status < 5)
         .filter(~ProcessInstance.uuid.in_(stored_query))
         .count()
     )
