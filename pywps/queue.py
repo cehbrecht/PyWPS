@@ -5,7 +5,9 @@ from pywps import dblog
 import pywps.processing
 import pywps.configuration as config
 from pywps.log import get_logger
+from pywps.response.status import WPS_STATUS
 import json
+import psutil
 
 # Configure logging
 LOGGER = logging.getLogger("PYWPS")
@@ -30,6 +32,7 @@ class JobQueueService(object):
         while True:
             # Logging errors and exceptions
             try:
+                cancel_stalled_jobs()
                 running, stored = dblog.get_process_counts()
                 if old_running != running or old_stored != stored:
                     old_running = running
@@ -47,6 +50,26 @@ class JobQueueService(object):
             # The job queue will repeat your tasks according to this variable
             # it's in second so 60 is 1 minute, 3600 is 1 hour, etc.
             time.sleep(self.max_time)
+
+
+def cancel_stalled_jobs():
+    jobs = dblog.get_stalled_jobs()
+    for job in jobs:
+        try:
+            p = psutil.Process(job.pid)
+            p.terminate()
+        except Exception:
+            LOGGER.exception("Could not cancel stalled job")
+        try:
+            dblog.store_status(
+                job.uuid,
+                wps_status=WPS_STATUS.FAILED,
+                message='canceled stalled job',
+                status_percentage=job.percent_done,
+                pid=job.pid)
+        except Exception:
+            LOGGER.exception("Could not update status of stalled job.")
+        LOGGER.info("canceled stalled job with pid={}".format(job.pid))
 
 
 def launch_process():

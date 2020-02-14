@@ -4,6 +4,7 @@ jinja2
 jsonschema
 lxml
 owslib
+psutil
 python-dateutil
 requests
 SQLAlchemy
