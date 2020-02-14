@@ -1,10 +1,9 @@
+alembic
 click
 jinja2
 jsonschema
 lxml
 owslib
-pathlib
-psutil
 python-dateutil
 requests
 SQLAlchemy

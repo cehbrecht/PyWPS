@@ -5,6 +5,7 @@
 
 import logging
 import os
+from pywps.translations import lower_case_dict
 import sys
 import traceback
 import shutil
@@ -12,12 +13,9 @@ import shutil
 from pywps import dblog
 from pywps.response import get_response
 from pywps.response.status import WPS_STATUS
-from pywps.response.execute import ExecuteResponse
-from pywps.app.WPSRequest import WPSRequest
 from pywps.inout.inputs import input_from_json
 from pywps.inout.outputs import output_from_json
 import pywps.configuration as config
-from pywps._compat import PY2
 from pywps.exceptions import (StorageNotSupported, OperationNotSupported,
                               ServerBusy, NoApplicableCode)
 from pywps.app.exceptions import ProcessError
@@ -48,10 +46,14 @@ class Process(object):
                    objects.
     :param metadata: List of metadata advertised by this process. They
                      should be :class:`pywps.app.Common.Metadata` objects.
+    :param dict[str,dict[str,str]] translations: The first key is the RFC 4646 language code,
+        and the nested mapping contains translated strings accessible by a string property.
+        e.g. {"fr-CA": {"title": "Mon titre", "abstract": "Une description"}}
     """
 
-    def __init__(self, handler, identifier, title, abstract='', keywords=[], profile=[], metadata=[], inputs=[],
-                 outputs=[], version='None', store_supported=False, status_supported=False, grass_location=None):
+    def __init__(self, handler, identifier, title, abstract='', keywords=[], profile=[],
+                 metadata=[], inputs=[], outputs=[], version='None', store_supported=False,
+                 status_supported=False, grass_location=None, translations=None):
         self.identifier = identifier
         self.handler = handler
         self.title = title
@@ -72,6 +74,7 @@ class Process(object):
         self._grass_mapset = None
         self.grass_location = grass_location
         self.service = None
+        self.translations = lower_case_dict(translations)
 
         if store_supported:
             self.store_supported = 'true'
@@ -101,6 +104,7 @@ class Process(object):
             'store_supported': self.store_supported,
             'status_supported': self.status_supported,
             'profile': [p for p in self.profile],
+            'translations': self.translations,
         }
 
     @classmethod
@@ -197,13 +201,13 @@ class Process(object):
                 raise ServerBusy('Maximum number of processes in queue reached. Please try later.')
             LOGGER.debug("Store process in job queue, uuid={}".format(self.uuid))
             dblog.store_request(self.uuid, wps_request, self)
-            wps_response._update_status(WPS_STATUS.ACCEPTED, u'PyWPS Process stored in job queue', 0)
+            wps_response._update_status(WPS_STATUS.ACCEPTED, 'PyWPS Process stored in job queue', 0)
 
         # not async
         else:
             if running >= maxparallel and maxparallel != -1:
                 raise ServerBusy('Maximum number of parallel running processes reached. Please try later.')
-            wps_response._update_status(WPS_STATUS.ACCEPTED, u"PyWPS Request accepted", 0)
+            wps_response._update_status(WPS_STATUS.ACCEPTED, "PyWPS Request accepted", 0)
             wps_response = self.run_process(wps_request, wps_response)
 
         return wps_response
@@ -220,7 +224,7 @@ class Process(object):
                 os.environ['HOME'] = self.workdir
                 LOGGER.info('Setting HOME to current working directory: {}'.format(os.environ['HOME']))
             LOGGER.debug('ProcessID={}, HOME={}'.format(self.uuid, os.environ.get('HOME')))
-            wps_response._update_status(WPS_STATUS.STARTED, u'PyWPS Process started', 0)
+            wps_response._update_status(WPS_STATUS.STARTED, 'PyWPS Process started', 0)
             self.handler(wps_request, wps_response)  # the user must update the wps_response.
             # Ensure process termination
             if wps_response.status != WPS_STATUS.SUCCEEDED and wps_response.status != WPS_STATUS.FAILED:

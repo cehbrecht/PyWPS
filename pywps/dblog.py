@@ -10,7 +10,6 @@ Implementation of logging for PyWPS-4
 import logging
 from pywps import configuration
 from pywps.exceptions import NoApplicableCode
-from pywps._compat import PY2
 import sqlite3
 import datetime
 import pickle
@@ -27,8 +26,8 @@ from sqlalchemy.pool import NullPool, StaticPool
 LOGGER = logging.getLogger('PYWPS')
 _SESSION_MAKER = None
 
-_tableprefix = configuration.get_config_value('logging', 'prefix')
-_schema = configuration.get_config_value('logging', 'schema')
+_tableprefix = 'pywps_'  # configuration.get_config_value('logging', 'prefix')
+# _schema = configuration.get_config_value('logging', 'schema')
 
 Base = declarative_base()
 
@@ -55,7 +54,7 @@ class RequestInstance(Base):
 
     uuid = Column(VARCHAR(255), primary_key=True, nullable=False)
     request = Column(LargeBinary, nullable=False)
-    process = Column(LargeBinary, nullable=False)
+    process = Column(LargeBinary, nullable=True)
 
 
 def log_request(uuid, request):
@@ -195,11 +194,9 @@ def get_session():
                 engine = sqlalchemy.create_engine(database, echo=echo, poolclass=NullPool)
 
         except sqlalchemy.exc.SQLAlchemyError as e:
-            raise NoApplicableCode("Could not connect to database: {}".format(e.message))
+            raise NoApplicableCode("Could not connect to database: {}".format(e))
 
         Session = sessionmaker(bind=engine, expire_on_commit=True)
-        ProcessInstance.metadata.create_all(engine)
-        RequestInstance.metadata.create_all(engine)
 
         _SESSION_MAKER = Session
 

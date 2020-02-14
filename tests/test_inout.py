@@ -7,7 +7,7 @@
 # licensed under MIT, Please consult LICENSE.txt for details     #
 ##################################################################
 
-from __future__ import absolute_import
+
 import requests
 import os
 import tempfile
@@ -24,14 +24,15 @@ from pywps.inout.basic import IOHandler, SOURCE_TYPE, SimpleHandler, BBoxInput, 
     ComplexInput, ComplexOutput, LiteralOutput, LiteralInput, _is_textfile
 from pywps.inout.literaltypes import convert, AllowedValue, AnyValue
 from pywps.inout.outputs import MetaFile, MetaLink, MetaLink4
-from pywps._compat import StringIO, text_type, urlparse
+from io import StringIO
+from urllib.parse import urlparse
 from pywps.validator.base import emptyvalidator
 from pywps.exceptions import InvalidParameterValue
 from pywps.validator.mode import MODE
 from pywps.inout.basic import UOM
-from pywps._compat import PY2
 from pywps.inout.storage.file import FileStorageBuilder
 from pywps.tests import service_ok
+from pywps.translations import get_translation
 
 from lxml import etree
 
@@ -76,7 +77,7 @@ class IOHandlerTest(unittest.TestCase):
             self.assertEqual('file', urlparse(self.iohandler.url).scheme)
 
         if self.iohandler.source_type == SOURCE_TYPE.STREAM:
-            source = StringIO(text_type(self._value))
+            source = StringIO(str(self._value))
             self.iohandler.stream = source
 
         file_path = self.iohandler.file
@@ -86,16 +87,13 @@ class IOHandlerTest(unittest.TestCase):
         file_handler.close()
 
         if self.iohandler.source_type == SOURCE_TYPE.STREAM:
-            source = StringIO(text_type(self._value))
+            source = StringIO(str(self._value))
             self.iohandler.stream = source
 
         stream_val = self.iohandler.stream.read()
         self.iohandler.stream.close()
 
-        if PY2 and isinstance(stream_val, str):
-            self.assertEqual(self._value, stream_val.decode('utf-8'),
-                             'Stream obtained')
-        elif not PY2 and isinstance(stream_val, bytes):
+        if isinstance(stream_val, bytes):
             self.assertEqual(self._value, stream_val.decode('utf-8'),
                              'Stream obtained')
         else:
@@ -103,7 +101,7 @@ class IOHandlerTest(unittest.TestCase):
                              'Stream obtained')
 
         if self.iohandler.source_type == SOURCE_TYPE.STREAM:
-            source = StringIO(text_type(self._value))
+            source = StringIO(str(self._value))
             self.iohandler.stream = source
 
         # self.assertEqual(stream_val, self.iohandler.memory_object,
@@ -111,15 +109,13 @@ class IOHandlerTest(unittest.TestCase):
 
     def test_data(self):
         """Test data input IOHandler"""
-        if PY2:
-            self.skipTest('fails on python 2.7')
         self.iohandler.data = self._value
         self.iohandler.data_format = Format('foo', extension='.foo')
         self._test_outout(SOURCE_TYPE.DATA, '.foo')
 
     def test_stream(self):
         """Test stream input IOHandler"""
-        source = StringIO(text_type(self._value))
+        source = StringIO(str(self._value))
         self.iohandler.stream = source
         self._test_outout(SOURCE_TYPE.STREAM)
 
@@ -162,8 +158,6 @@ class IOHandlerTest(unittest.TestCase):
         self.skipTest('Memory object not implemented')
 
     def test_data_bytes(self):
-        if PY2:
-            self.skipTest('fails on python 2.7')
         self._value = b'aa'
 
         self.iohandler.data = self._value
@@ -244,6 +238,7 @@ class SerializationComplexInputTest(unittest.TestCase):
             metadata=[Metadata("special data")],
             default="/some/file/path",
             default_type=SOURCE_TYPE.FILE,
+            translations={"fr-CA": {"title": "Mon input", "abstract": "Une description"}},
         )
         complex.as_reference = False
         complex.method = "GET"
@@ -262,6 +257,7 @@ class SerializationComplexInputTest(unittest.TestCase):
         self.assertEqual(complex_1.max_occurs, complex_2.max_occurs)
         self.assertEqual(complex_1.valid_mode, complex_2.valid_mode)
         self.assertEqual(complex_1.as_reference, complex_2.as_reference)
+        self.assertEqual(complex_1.translations, complex_2.translations)
 
         self.assertEqual(complex_1.prop, complex_2.prop)
 
@@ -287,7 +283,7 @@ class SerializationComplexInputTest(unittest.TestCase):
         complex.data = "some data"
         complex2 = inout.inputs.ComplexInput.from_json(complex.json)
         # the data is enclosed by a CDATA tag
-        complex._data = u'<![CDATA[{}]]>'.format(complex.data)
+        complex._data = '<![CDATA[{}]]>'.format(complex.data)
         # it's expected that the file path changed
         complex._file = complex2.file
 
@@ -303,7 +299,7 @@ class SerializationComplexInputTest(unittest.TestCase):
         # we hard-code it for the testing comparison
         complex.prop = 'data'
         # the data is enclosed by a CDATA tag
-        complex._data = u'<![CDATA[{}]]>'.format(complex.data)
+        complex._data = '<![CDATA[{}]]>'.format(complex.data)
         # it's expected that the file path changed
         complex._file = complex2.file
 
@@ -463,7 +459,9 @@ class ComplexOutputTest(unittest.TestCase):
             workdir=tmp_dir,
             data_format=data_format,
             supported_formats=[data_format],
-            mode=MODE.NONE)
+            mode=MODE.NONE,
+            translations={"fr-CA": {"title": "Mon output", "abstract": "Une description"}},
+            )
 
         self.complex_out_nc = inout.outputs.ComplexOutput(
             identifier="netcdf",
@@ -473,7 +471,7 @@ class ComplexOutputTest(unittest.TestCase):
             supported_formats=[get_data_format('application/x-netcdf')],
             mode=MODE.NONE)
 
-        self.data = json.dumps({'a': 1, 'unicodé': u'éîïç', })
+        self.data = json.dumps({'a': 1, 'unicodé': 'éîïç', })
         self.ncfile = os.path.join(DATA_DIR, 'netcdf', 'time.nc')
 
         self.test_fn = os.path.join(self.complex_out.workdir, 'test.json')
@@ -503,24 +501,17 @@ class ComplexOutputTest(unittest.TestCase):
     def test_file_handler(self):
         self.complex_out.file = self.test_fn
         self.assertEqual(self.complex_out.data, self.data)
-        if PY2:
-            self.assertEqual(self.complex_out.stream.read(), self.data)
-        else:
-            with self.complex_out.stream as s:
-                self.assertEqual(s.read(), bytes(self.data, encoding='utf8'))
+        with self.complex_out.stream as s:
+            self.assertEqual(s.read(), bytes(self.data, encoding='utf8'))
 
         with open(urlparse(self.complex_out.url).path) as f:
             self.assertEqual(f.read(), self.data)
 
     def test_file_handler_netcdf(self):
-        if PY2:
-            self.skipTest('fails on python 2.7')
         self.complex_out_nc.file = self.ncfile
         self.complex_out_nc.base64
 
     def test_data_handler(self):
-        if PY2:
-            self.skipTest('fails on python 2.7')
         self.complex_out.data = self.data
         with open(self.complex_out.file) as f:
             self.assertEqual(f.read(), self.data)
@@ -528,10 +519,7 @@ class ComplexOutputTest(unittest.TestCase):
     def test_base64(self):
         self.complex_out.data = self.data
         b = self.complex_out.base64
-        if PY2:
-            self.assertEqual(base64.b64decode(b), self.data)
-        else:
-            self.assertEqual(base64.b64decode(b).decode(), self.data)
+        self.assertEqual(base64.b64decode(b).decode(), self.data)
 
     def test_url_handler(self):
         wfsResource = 'http://demo.mapserver.org/cgi-bin/wfs?' \
@@ -546,6 +534,11 @@ class ComplexOutputTest(unittest.TestCase):
     def test_json(self):
         new_output = inout.outputs.ComplexOutput.from_json(self.complex_out.json)
         self.assertEqual(new_output.identifier, 'complexoutput')
+        self.assertEqual(
+            new_output.translations,
+            {"fr-ca": {"title": "Mon output", "abstract": "Une description"}},
+            'translations does not exist'
+        )
 
 
 class SimpleHandlerTest(unittest.TestCase):
@@ -576,7 +569,9 @@ class LiteralInputTest(unittest.TestCase):
             mode=2,
             allowed_values=(1, 2, (3, 3, 12)),
             default=6,
-            uoms=(UOM("metre"),))
+            uoms=(UOM("metre"),),
+            translations={"fr-CA": {"title": "Mon input", "abstract": "Une description"}},
+        )
 
     def test_contruct(self):
         self.assertIsInstance(self.literal_input, LiteralInput)
@@ -621,6 +616,11 @@ class LiteralInputTest(unittest.TestCase):
         self.assertEqual(out['type'], 'literal', 'it\'s literal input')
         self.assertEqual(len(out['allowed_values']), 3, '3 allowed values')
         self.assertEqual(out['allowed_values'][0]['value'], 1, 'allowed value 1')
+        self.assertEqual(
+            out['translations'],
+            {"fr-ca": {"title": "Mon input", "abstract": "Une description"}},
+            'translations does not exist'
+        )
 
     def test_json_out_datetime(self):
         inpt = inout.inputs.LiteralInput(
@@ -652,6 +652,13 @@ class LiteralInputTest(unittest.TestCase):
         out = inpt.json
         self.assertEqual(out['data'], '2017-04-20', 'date set')
 
+    def test_translations(self):
+        title_fr = get_translation(self.literal_input, "title", "fr-CA")
+        assert title_fr == "Mon input"
+        abstract_fr = get_translation(self.literal_input, "abstract", "fr-CA")
+        assert abstract_fr == "Une description"
+        identifier = get_translation(self.literal_input, "identifier", "fr-CA")
+        assert identifier == self.literal_input.identifier
 
 class LiteralOutputTest(unittest.TestCase):
     """LiteralOutput test cases"""
@@ -659,7 +666,11 @@ class LiteralOutputTest(unittest.TestCase):
     def setUp(self):
 
         self.literal_output = inout.outputs.LiteralOutput(
-            "literaloutput", data_type="integer", title="Literal Output")
+            "literaloutput",
+            data_type="integer",
+            title="Literal Output",
+            translations={"fr-CA": {"title": "Mon output", "abstract": "Une description"}},
+        )
 
     def test_contruct(self):
         self.assertIsInstance(self.literal_output, LiteralOutput)
@@ -674,6 +685,11 @@ class LiteralOutputTest(unittest.TestCase):
     def test_json(self):
         new_output = inout.outputs.LiteralOutput.from_json(self.literal_output.json)
         self.assertEqual(new_output.identifier, 'literaloutput')
+        self.assertEqual(
+            new_output.translations,
+            {"fr-ca": {"title": "Mon output", "abstract": "Une description"}},
+            'translations does not exist'
+        )
 
 
 class BBoxInputTest(unittest.TestCase):
@@ -681,7 +697,12 @@ class BBoxInputTest(unittest.TestCase):
 
     def setUp(self):
 
-        self.bbox_input = inout.inputs.BoundingBoxInput("bboxinput", title="BBox input", dimensions=2)
+        self.bbox_input = inout.inputs.BoundingBoxInput(
+            "bboxinput",
+            title="BBox input",
+            dimensions=2,
+            translations={"fr-CA": {"title": "Mon input", "abstract": "Une description"}},
+        )
         self.bbox_input.data = [0, 1, 2, 4]
 
     def test_contruct(self):
@@ -697,6 +718,11 @@ class BBoxInputTest(unittest.TestCase):
         # self.assertTupleEqual(out['bbox'], ([0, 1], [2, 4]), 'data are there')
         self.assertEqual(out['bbox'], [0, 1, 2, 4], 'data are there')
         self.assertEqual(out['dimensions'], 2, 'Dimensions set')
+        self.assertEqual(
+            out['translations'],
+            {"fr-ca": {"title": "Mon input", "abstract": "Une description"}},
+            'translations does not exist'
+        )
 
 
 class BBoxOutputTest(unittest.TestCase):
@@ -707,7 +733,9 @@ class BBoxOutputTest(unittest.TestCase):
             "bboxoutput",
             title="BBox output",
             dimensions=2,
-            crss=['epsg:3857', 'epsg:4326'])
+            crss=['epsg:3857', 'epsg:4326'],
+            translations={"fr-CA": {"title": "Mon output", "abstract": "Une description"}},
+        )
 
     def test_contruct(self):
         self.assertIsInstance(self.bbox_out, BBoxOutput)
@@ -722,6 +750,11 @@ class BBoxOutputTest(unittest.TestCase):
     def test_json(self):
         new_bbox = inout.outputs.BoundingBoxOutput.from_json(self.bbox_out.json)
         self.assertEqual(new_bbox.identifier, 'bboxoutput')
+        self.assertEqual(
+            new_bbox.translations,
+            {"fr-ca": {"title": "Mon output", "abstract": "Une description"}},
+            'translations does not exist'
+        )
 
 
 class TestMetaLink(unittest.TestCase):

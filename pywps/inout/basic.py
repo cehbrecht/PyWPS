@@ -3,7 +3,8 @@
 # licensed under MIT, Please consult LICENSE.txt for details     #
 ##################################################################
 
-from pywps._compat import text_type, StringIO
+from pywps.translations import lower_case_dict
+from io import StringIO
 import os
 from io import open
 import shutil
@@ -24,7 +25,7 @@ from pywps.validator.literalvalidator import (validate_value,
                                               validate_values_reference)
 from pywps.exceptions import NoApplicableCode, InvalidParameterValue, FileSizeExceeded, \
     FileURLNotSupported
-from pywps._compat import PY2, urlparse
+from urllib.parse import urlparse
 import base64
 from collections import namedtuple
 from copy import deepcopy
@@ -333,21 +334,20 @@ class FileHandler(IOHandler):
 
     def _openmode(self, data=None):
         openmode = 'r'
-        if not PY2:
-            # in Python 3 we need to open binary files in binary mode.
-            checked = False
-            if hasattr(self, 'data_format'):
-                if self.data_format.encoding == 'base64':
-                    # binary, when the data is to be encoded to base64
-                    openmode += 'b'
-                    checked = True
-                elif 'text/' in self.data_format.mime_type:
-                    # not binary, when mime_type is 'text/'
-                    checked = True
-            # when we can't guess it from the mime_type, we need to check the file.
-            # mimetypes like application/xml and application/json are text files too.
-            if not checked and not _is_textfile(self.file):
+        # in Python 3 we need to open binary files in binary mode.
+        checked = False
+        if hasattr(self, 'data_format'):
+            if self.data_format.encoding == 'base64':
+                # binary, when the data is to be encoded to base64
                 openmode += 'b'
+                checked = True
+            elif 'text/' in self.data_format.mime_type:
+                # not binary, when mime_type is 'text/'
+                checked = True
+        # when we can't guess it from the mime_type, we need to check the file.
+        # mimetypes like application/xml and application/json are text files too.
+        if not checked and not _is_textfile(self.file):
+            openmode += 'b'
         return openmode
 
 
@@ -356,7 +356,7 @@ class DataHandler(FileHandler):
 
     def _openmode(self, data=None):
         openmode = 'w'
-        if not PY2 and isinstance(data, bytes):
+        if isinstance(data, bytes):
             # on Python 3 open the file in binary mode if the source is
             # bytes, which happens when the data was base64-decoded
             openmode += 'b'
@@ -391,10 +391,10 @@ class DataHandler(FileHandler):
     @property
     def stream(self):
         """Return a stream representation of the data."""
-        if not PY2 and isinstance(self.data, bytes):
+        if isinstance(self.data, bytes):
             return BytesIO(self.data)
         else:
-            return StringIO(text_type(self.data))
+            return StringIO(str(self.data))
 
 
 class StreamHandler(DataHandler):
@@ -543,8 +543,9 @@ class SimpleHandler(DataHandler):
 class BasicIO:
     """Basic Input/Output class
     """
+
     def __init__(self, identifier, title=None, abstract=None, keywords=None,
-                 min_occurs=1, max_occurs=1, metadata=[]):
+                 min_occurs=1, max_occurs=1, metadata=[], translations=None):
         self.identifier = identifier
         self.title = title
         self.abstract = abstract
@@ -552,6 +553,7 @@ class BasicIO:
         self.min_occurs = int(min_occurs)
         self.max_occurs = int(max_occurs)
         self.metadata = metadata
+        self.translations = lower_case_dict(translations)
 
 
 class BasicLiteral:
@@ -701,9 +703,17 @@ class LiteralInput(BasicIO, BasicLiteral, SimpleHandler):
                  data_type="integer", workdir=None, allowed_values=None,
                  uoms=None, mode=MODE.NONE,
                  min_occurs=1, max_occurs=1, metadata=[],
-                 default=None, default_type=SOURCE_TYPE.DATA):
-        BasicIO.__init__(self, identifier, title, abstract, keywords,
-                         min_occurs, max_occurs, metadata)
+                 default=None, default_type=SOURCE_TYPE.DATA, translations=None):
+        BasicIO.__init__(self,
+                         identifier=identifier,
+                         title=title,
+                         abstract=abstract,
+                         keywords=keywords,
+                         min_occurs=min_occurs,
+                         max_occurs=max_occurs,
+                         metadata=metadata,
+                         translations=translations,
+                         )
         BasicLiteral.__init__(self, data_type, uoms)
         SimpleHandler.__init__(self, workdir, data_type, mode=mode)
 
@@ -752,8 +762,8 @@ class LiteralOutput(BasicIO, BasicLiteral, SimpleHandler):
 
     def __init__(self, identifier, title=None, abstract=None, keywords=None,
                  data_type=None, workdir=None, uoms=None, validate=None,
-                 mode=MODE.NONE):
-        BasicIO.__init__(self, identifier, title, abstract, keywords)
+                 mode=MODE.NONE, translations=None):
+        BasicIO.__init__(self, identifier, title, abstract, keywords, translations=translations)
         BasicLiteral.__init__(self, data_type, uoms)
         SimpleHandler.__init__(self, workdir=None, data_type=data_type,
                                mode=mode)
@@ -784,9 +794,17 @@ class BBoxInput(BasicIO, BasicBoundingBox, DataHandler):
                  dimensions=None, workdir=None,
                  mode=MODE.SIMPLE,
                  min_occurs=1, max_occurs=1, metadata=[],
-                 default=None, default_type=SOURCE_TYPE.DATA):
-        BasicIO.__init__(self, identifier, title, abstract, keywords,
-                         min_occurs, max_occurs, metadata)
+                 default=None, default_type=SOURCE_TYPE.DATA, translations=None):
+        BasicIO.__init__(self,
+                         identifier=identifier,
+                         title=title,
+                         abstract=abstract,
+                         keywords=keywords,
+                         min_occurs=min_occurs,
+                         max_occurs=max_occurs,
+                         metadata=metadata,
+                         translations=translations,
+                         )
         BasicBoundingBox.__init__(self, crss, dimensions)
         DataHandler.__init__(self, workdir=workdir, mode=mode)
 
@@ -804,8 +822,8 @@ class BBoxOutput(BasicIO, BasicBoundingBox, DataHandler):
     """
 
     def __init__(self, identifier, title=None, abstract=None, keywords=None, crss=None,
-                 dimensions=None, workdir=None, mode=MODE.NONE):
-        BasicIO.__init__(self, identifier, title, abstract, keywords)
+                 dimensions=None, workdir=None, mode=MODE.NONE, translations=None):
+        BasicIO.__init__(self, identifier, title, abstract, keywords, translations=translations)
         BasicBoundingBox.__init__(self, crss, dimensions)
         DataHandler.__init__(self, workdir=workdir, mode=mode)
         self._storage = None
@@ -832,10 +850,17 @@ class ComplexInput(BasicIO, BasicComplex, IOHandler):
                  workdir=None, data_format=None, supported_formats=None,
                  mode=MODE.NONE,
                  min_occurs=1, max_occurs=1, metadata=[],
-                 default=None, default_type=SOURCE_TYPE.DATA):
-
-        BasicIO.__init__(self, identifier, title, abstract, keywords,
-                         min_occurs, max_occurs, metadata)
+                 default=None, default_type=SOURCE_TYPE.DATA, translations=None):
+        BasicIO.__init__(self,
+                         identifier=identifier,
+                         title=title,
+                         abstract=abstract,
+                         keywords=keywords,
+                         min_occurs=min_occurs,
+                         max_occurs=max_occurs,
+                         metadata=metadata,
+                         translations=translations,
+                         )
         IOHandler.__init__(self, workdir=workdir, mode=mode)
         BasicComplex.__init__(self, data_format, supported_formats)
 
@@ -944,8 +969,8 @@ class ComplexOutput(BasicIO, BasicComplex, IOHandler):
 
     def __init__(self, identifier, title=None, abstract=None, keywords=None,
                  workdir=None, data_format=None, supported_formats=None,
-                 mode=MODE.NONE):
-        BasicIO.__init__(self, identifier, title, abstract, keywords)
+                 mode=MODE.NONE, translations=None):
+        BasicIO.__init__(self, identifier, title, abstract, keywords, translations=translations)
         IOHandler.__init__(self, workdir=workdir, mode=mode)
         BasicComplex.__init__(self, data_format, supported_formats)
 
@@ -969,12 +994,3 @@ class ComplexOutput(BasicIO, BasicComplex, IOHandler):
         (_, _, url) = self.storage.store(self)
         # url = self.storage.url(self)
         return url
-
-
-if __name__ == "__main__":
-    import doctest
-    from pywps.wpsserver import temp_dir
-
-    with temp_dir() as tmp:
-        os.chdir(tmp)
-        doctest.testmod()

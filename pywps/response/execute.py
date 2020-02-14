@@ -15,14 +15,8 @@ from pywps.response.status import WPS_STATUS
 from pywps.response import WPSResponse
 from pywps.inout.formats import FORMATS
 
-from pywps._compat import PY2
-
-if PY2:
-    import urlparse
-    from urllib import urlencode
-else:
-    import urllib.parse as urlparse
-    from urllib.parse import urlencode
+import urllib.parse as urlparse
+from urllib.parse import urlencode
 
 LOGGER = logging.getLogger("PYWPS")
 
@@ -155,7 +149,7 @@ class ExecuteResponse(WPSResponse):
     @property
     def json(self):
         data = {}
-        data["lang"] = "en-US"
+        data["language"] = self.wps_request.language
         data["service_instance"] = self._get_serviceinstance()
         data["process"] = self.process.json
 

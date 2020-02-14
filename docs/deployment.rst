@@ -44,7 +44,7 @@ As already described in the :ref:`installation` section, no specific deployment
 procedures are for PyWPS when using flask-based server. But this formula is not
 intended to be used in a production environment. For production, `sudo service apache2 restartApache httpd
 <https://httpd.apache.org/>`_ or `nginx <https://nginx.org/>`_ servers are
-more advised. PyWPS is runs as a `WSGI
+more advised. PyWPS is run as a `WSGI
 <https://wsgi.readthedocs.io/en/latest/>`_ application on those servers. PyWPS
 relies on the `Werkzeug <http://werkzeug.pocoo.org/>`_ library for this purpose.
 
@@ -88,12 +88,12 @@ the available processes::
 
 Start the pywps with the following command::
 
-    $ pywps start -c pywps.cfg
+    $ pywps -c pywps.cfg start
 
 You can also start the pywps service and the job queue as seperated processes::
 
-    $ pywps start -c pywps.cfg --no-jobqueue
-    $ pywps jobqueue -c pywps.cfg
+    $ pywps -c pywps.cfg start --no-jobqueue
+    $ pywps -c pywps.cfg jobqueue 
 
 Creating a PyWPS `WSGI` instance
 --------------------------------

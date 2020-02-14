@@ -87,6 +87,8 @@ configuration file <https://docs.pycsw.org/en/latest/configuration.html>`_.
     ``pointOfContact``, ``distributor``, ``user``, ``resourceProvider``,
     ``originator``, ``owner``, ``principalInvestigator``
 
+.. _server-configuration:
+
 [server]
 --------
 
@@ -94,7 +96,8 @@ configuration file <https://docs.pycsw.org/en/latest/configuration.html>`_.
     the URL of the WPS service endpoint
 
 :language:
-    the ISO 639-1 language and ISO 3166-1 alpha2 country code of the service
+    a comma-separated list of ISO 639-1 language and ISO 3166-1 alpha2 country 
+    code of the service
     (e.g. ``en-CA``, ``fr-CA``, ``en-US``)
 
 :encoding:

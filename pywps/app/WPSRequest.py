@@ -10,7 +10,6 @@ from werkzeug.exceptions import MethodNotAllowed
 from pywps import get_ElementMakerForVersion
 import base64
 import datetime
-from pywps._compat import text_type, PY2
 from pywps.app.basic import get_xpath_ns
 from pywps.inout.inputs import input_from_json
 from pywps.exceptions import NoApplicableCode, OperationNotSupported, MissingParameterValue, VersionNegotiationFailed, \
@@ -87,10 +86,7 @@ class WPSRequest(object):
         try:
             doc = lxml.etree.fromstring(self.http_request.get_data())
         except Exception as e:
-            if PY2:
-                raise NoApplicableCode(e.message)
-            else:
-                raise NoApplicableCode(e.msg)
+            raise NoApplicableCode(e.msg)
 
         operation = doc.tag
         version = get_version_from_ns(doc.nsmap[doc.prefix])
@@ -110,6 +106,9 @@ class WPSRequest(object):
 
             acceptedversions = _get_get_param(http_request, 'acceptversions')
             wpsrequest.check_accepted_versions(acceptedversions)
+
+            language = _get_get_param(http_request, 'language')
+            wpsrequest.check_and_set_language(language)
 
         def parse_get_describeprocess(http_request):
             """Parse GET DescribeProcess request
@@ -188,8 +187,11 @@ class WPSRequest(object):
             acceptedversions = self.xpath_ns(
                 doc, '/wps:GetCapabilities/ows:AcceptVersions/ows:Version')
             acceptedversions = ','.join(
-                map(lambda v: v.text, acceptedversions))
+                [v.text for v in acceptedversions])
             wpsrequest.check_accepted_versions(acceptedversions)
+
+            language = doc.attrib.get('language')
+            wpsrequest.check_and_set_language(language)
 
         def parse_post_describeprocess(doc):
             """Parse POST DescribeProcess request
@@ -208,7 +210,6 @@ class WPSRequest(object):
         def parse_post_execute(doc):
             """Parse POST Execute request
             """
-
             version = doc.attrib.get('version')
             wpsrequest.check_and_set_version(version)
 
@@ -300,14 +301,20 @@ class WPSRequest(object):
     def check_and_set_language(self, language):
         """set this.language
         """
+        supported_languages = configuration.get_config_value('server', 'language').split(',')
+        supported_languages = [lang.strip() for lang in supported_languages]
 
         if not language:
-            language = 'None'
-        elif language != 'en-US':
+            # default to the first supported language
+            language = supported_languages[0]
+
+        if language not in supported_languages:
             raise InvalidParameterValue(
-                'The requested language "{}" is not supported by this server'.format(language), 'language')
-        else:
-            self.language = language
+                'The requested language "{}" is not supported by this server'.format(language),
+                'language',
+            )
+
+        self.language = language
 
     @property
     def json(self):
@@ -387,7 +394,7 @@ def get_inputs_from_xml(doc):
             value_el = literal_data[0]
             inpt = {}
             inpt['identifier'] = identifier_el.text
-            inpt['data'] = text_type(value_el.text)
+            inpt['data'] = str(value_el.text)
             inpt['uom'] = value_el.attrib.get('uom', '')
             inpt['datatype'] = value_el.attrib.get('datatype', '')
             the_inputs[identifier].append(inpt)
@@ -561,10 +568,7 @@ def _get_dataelement_value(value_el):
     """
 
     if isinstance(value_el, lxml.etree._Element):
-        if PY2:
-            return lxml.etree.tostring(value_el, encoding=unicode)  # noqa
-        else:
-            return lxml.etree.tostring(value_el, encoding=str)
+        return lxml.etree.tostring(value_el, encoding=str)
     else:
         return value_el
 
