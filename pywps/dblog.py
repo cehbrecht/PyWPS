@@ -134,7 +134,7 @@ def store_status(uuid, wps_status, message=None, status_percentage=None, pid=-1)
 def get_stalled_jobs():
     maxprocessingtime = int(configuration.get_config_value('server', 'maxprocessingtime'))
     if maxprocessingtime < 0:
-        return
+        return []
     accepted_starttime = datetime.datetime.now() - datetime.timedelta(seconds=maxprocessingtime)
     session = get_session()
     stored_query = session.query(RequestInstance.uuid)
