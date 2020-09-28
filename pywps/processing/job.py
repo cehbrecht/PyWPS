@@ -124,7 +124,7 @@ class JobLauncher(object):
         if config.get_config_value('logging', 'file') and config.get_config_value('logging', 'level'):
             LOGGER.setLevel(getattr(logging, config.get_config_value('logging', 'level')))
             if not LOGGER.handlers:  # hasHandlers in Python 3.x
-                fh = logging.FileHandler(config.get_config_value('logging', 'file'))
+                fh = logging.WatchedFileHandler(config.get_config_value('logging', 'file'))
                 fh.setFormatter(logging.Formatter(config.get_config_value('logging', 'format')))
                 LOGGER.addHandler(fh)
         else:  # NullHandler
